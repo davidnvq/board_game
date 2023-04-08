@@ -5,53 +5,47 @@ USER1 = 1
 USER2 = 2
 
 
-def create_board(size):
+def create_board(size, style=0):  # 0 = 'standard' else 'random'
     total_cells = size * size
 
-    # create board
+    # create zero board
     board = np.zeros((size, size), dtype=int)
     cells = [(i, j) for i in range(size) for j in range(size)]
 
-    # add player 1
-    player_idxes = np.random.choice(range(len(cells)), size=int(total_cells / 2), replace=False)
-    player_cells = [cells[i] for i in player_idxes]
+    if style == 0:  # standard
+        third = int(size // 3)
+        print(third)
+        board[0:third] = 1
+        board[-third:] = 2
+        return board
+    else:  # random
+        player_idxes = np.random.choice(range(len(cells)), size=int(total_cells / 2), replace=False)
+        player_cells = [cells[i] for i in player_idxes]
 
-    for i, (row, col) in enumerate(player_cells):
-        if i <= total_cells / 4:
-            board[col, row] = 1
-        else:
-            board[col, row] = 2
-    return board
-
-
-def afficher_carre(carre):
-    # Si c'est le position de joueur 1, affichez '*'
-    if carre == 1:
-        return 'x'  # '•'
-    # Si c'est le position de joueur 2, affichez '@'
-    elif carre == 2:
-        return 'o'  # '∘
-    # Si le carre n'est pas occupé, affichez une espace empty
-    else:
-        return ' '
+        for i, (row, col) in enumerate(player_cells):
+            if i <= total_cells / 4:
+                board[col, row] = 1
+            else:
+                board[col, row] = 2
+        return board
 
 
 def afficher_grille(board):
+    afficher_carre = [' ', 'x', 'o']
+
     # afficher la row d'indice de colonne de 0-9:
     print('    ' + '   '.join([str(i) for i in range(len(board))]))
     # print('  -------------------------------------')
     print('-----' * board.shape[0])
 
     #afficher le reste de board:
-    cpt = 0
-    for row in board:
+    for cpt, row in enumerate(board):
         chaque_ligne = ''
         #afficher chaque row avec son indice de A - I
         for col in row:
-            chaque_ligne += afficher_carre(col) + ' | '
+            chaque_ligne += afficher_carre[col] + ' | '
         print(cpt, '|', chaque_ligne)
         print('-----' * board.shape[0])
-        cpt += 1
     print("Jouer 1:x                    Jouer 2: o")
 
 
