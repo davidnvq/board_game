@@ -1,9 +1,7 @@
-# Final Project
+# Simple Board Game Project
 
 How to run the file:
 
 ```bash
-python projet.py
+python board_game.py
 ```
-
-University Website: tohoku.ac.jp
