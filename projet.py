@@ -843,6 +843,8 @@ def enchainement(grille, jouer):
     grille = changer_de_campe(l1, c1, l2, c2, grille, jouer)
     afficher_grille(grille)
     play_again = enchainement_a_nouveau()
+    play_again = enchainement_a_nouveau()
+
     while play_again != 'n':
         l1, c1 = l2, c2
         l1_alphabet = string.ascii_uppercase[l1]
