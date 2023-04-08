@@ -55,7 +55,18 @@ def afficher_grille(board):
     print("Jouer 1:x                    Jouer 2: o")
 
 
-def check_valid_and_get_opponent(board, s, e):
+def check_valid_on_top_and_get_opponent(board, s, e):
+    user = board[s[0], s[1]]
+    opponent_user = USER1 if user == USER2 else USER2
+
+    opponent_cell = (e[0], e[1])
+    if board[e[0], e[1]] == opponent_user:
+        return True, opponent_cell
+    else:
+        return False, opponent_cell
+
+
+def check_valid_between_and_get_opponent(board, s, e):
     user = board[s[0], s[1]]
     opponent_user = USER1 if user == USER2 else USER2
 
@@ -114,6 +125,23 @@ def get_input(which="start"):
     return (int(row), int(col))
 
 
+def update_board(board, s, e, opponent_cell):
+    board = update_opponent(board, opponent_cell)
+    board = update_cell(board, s, e)
+    # show board
+    afficher_grille(board)
+
+    # continue playing
+    do_continue = input("Continue? (y/n):\n")
+
+    if do_continue == 'y':
+        return step(board, current_user, s=e, e=None)
+
+    elif do_continue == 'n':
+        current_user = USER1 if current_user == USER2 else USER2
+        return step(board, current_user, s=None, e=None)
+
+
 def step(board, current_user, s=None, e=None):
     print("Your are player", current_user)
     # check start point, end point
@@ -127,23 +155,13 @@ def step(board, current_user, s=None, e=None):
         print("Invalid start point for user", current_user)
         return step(board, current_user, s=None, e=None)
 
-    is_valid, opponent_cell = check_valid_and_get_opponent(board, s, e)
+    is_valid, opponent_cell = check_valid_on_top_and_get_opponent(board, s, e)
     if is_valid:
-        board = update_opponent(board, opponent_cell)
-        board = update_cell(board, s, e)
+        update_board(board, s, e, opponent_cell)
 
-        # show board
-        afficher_grille(board)
-
-        # continue playing
-        do_continue = input("Continue? (y/n):\n")
-
-        if do_continue == 'y':
-            return step(board, current_user, s=e, e=None)
-
-        elif do_continue == 'n':
-            current_user = USER1 if current_user == USER2 else USER2
-            return step(board, current_user, s=None, e=None)
+    is_valid, opponent_cell = check_valid_between_and_get_opponent(board, s, e)
+    if is_valid:
+        update_board(board, s, e, opponent_cell)
 
 
 if __name__ == '__main__':
