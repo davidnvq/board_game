@@ -1,20 +1,22 @@
+import sys
+import math
 import string
 import numpy as np
 
-USER1 = 1
-USER2 = 2
+PLAYER1 = 1
+PLAYER2 = 2
+ALPHABET = string.ascii_lowercase  # 'abcdefghijklmnopqrstuvwxyz'
 
 
-def create_board(size, style=0):  # 0 = 'standard' else 'random'
+def create_board(size, style=1):  # 1 is a standard board;  2 is a random board
     total_cells = size * size
 
     # create zero board
     board = np.zeros((size, size), dtype=int)
     cells = [(i, j) for i in range(size) for j in range(size)]
 
-    if style == 0:  # standard
+    if style == 1:  # standard
         third = int(size // 3)
-        print(third)
         board[0:third] = 1
         board[-third:] = 2
         return board
@@ -30,147 +32,212 @@ def create_board(size, style=0):  # 0 = 'standard' else 'random'
         return board
 
 
-def afficher_grille(board):
+def highlight_cell(cell_code, cell, cur_cell=None):
+    # highlight the current cell
+    # cell_code = 'x' or 'o', cell = (row, col)
+    if cur_cell is not None and cell[0] == cur_cell[0] and cell[1] == cur_cell[1]:
+        return '\x1b[6;30;42m' + str(cell_code) + '\x1b[0m'
+    return cell_code
+
+
+def afficher_grille(board, cur_cell=None):
     afficher_carre = [' ', 'x', 'o']
 
     # afficher la row d'indice de colonne de 0-9:
-    print('    ' + '   '.join([str(i) for i in range(len(board))]))
+    print('    ' + '   '.join([str(i + 1) for i in range(len(board))]))
     # print('  -------------------------------------')
-    print('-----' * board.shape[0])
+    print('--+' + '---+' * board.shape[0])
 
     #afficher le reste de board:
-    for cpt, row in enumerate(board):
+    for row in range(board.shape[0]):
         chaque_ligne = ''
         #afficher chaque row avec son indice de A - I
-        for col in row:
-            chaque_ligne += afficher_carre[col] + ' | '
-        print(cpt, '|', chaque_ligne)
-        print('-----' * board.shape[0])
+        for col in range(board.shape[1]):
+            cell = (row, col)
+            cell_value = board[row, col]  # 0, 1, 2
+            cell_code = afficher_carre[cell_value]  # ' ', 'x', 'o'
+            cell_code = highlight_cell(cell_code, cell=cell, cur_cell=cur_cell)  # ' ', 'x', 'o' with color highlight
+            chaque_ligne += cell_code + ' | '
+        print(ALPHABET[row].upper(), '|', chaque_ligne)
+        print('--+' + '---+' * board.shape[0])
+
     print("Jouer 1:x                    Jouer 2: o")
 
 
-def check_valid_on_top_and_get_opponent(board, s, e):
-    user = board[s[0], s[1]]
-    opponent_user = USER1 if user == USER2 else USER2
-
-    opponent_cell = (e[0], e[1])
-    if board[e[0], e[1]] == opponent_user:
-        return True, opponent_cell
-    else:
-        return False, opponent_cell
+def get_step(number1, number2):
+    diff = number2 - number1
+    return int(math.copysign(1, diff)) if diff != 0 else 0
 
 
-def check_valid_between_and_get_opponent(board, s, e):
-    user = board[s[0], s[1]]
-    opponent_user = USER1 if user == USER2 else USER2
+def get_interested_segment_and_cell(board, cur_cell, end_cell):
+    # return the segment between a and b (include a and b)
+    # and the cell that is prior to the end cell
+    x1, y1 = cur_cell
+    x2, y2 = end_cell
 
-    opponent_cell = (-1, -1)
+    row_step = get_step(x1, x2)  # 1 or -1 or 0
+    col_step = get_step(y1, y2)  # 1 or -1 or 0
 
-    if s[0] == e[0]:  # horizontal
-        bidx = s[1] + 1 if s[1] < e[1] else e[1]  # begin index
-        eidx = s[1] + 1 if s[1] > e[1] else e[1] + 1
-        opponent_idx = e[1] + 1 if s[1] > e[1] else e[1] - 1
+    row_idxs = list(range(x1, x2 + row_step, row_step)) if row_step != 0 else [x1] * (abs(y2 - y1) + 1)
+    col_idxs = list(range(y1, y2 + col_step, col_step)) if col_step != 0 else [y1] * (abs(x2 - x1) + 1)
 
-        segment = board[e[0], bidx:eidx]  # segment between s & e
-        opponent_cell = (e[0], opponent_idx)  # opponent cell
+    segment = []  # will include both a and b
+    for i, j in zip(row_idxs, col_idxs):
+        segment.append(board[i, j])
 
-        cond1 = any(segment != user)
-        cond2 = sum(segment == opponent_user) == 1
-        cond3 = board[e[0], opponent_idx] == opponent_user
+    prior_end_cell = (row_idxs[-2], col_idxs[-2]) if len(segment) >= 2 else cur_cell
+    return np.array(segment), prior_end_cell
 
-    elif s[1] == e[1]:  # vertical
-        bidx = s[0] + 1 if s[0] < e[0] else e[0]  # begin index
-        eidx = s[0] if s[0] > e[0] else e[0]
-        opponent_idx = e[0] + 1 if s[0] > e[0] else e[0] - 1
 
-        segment = board[bidx:eidx, e[1]]  # segment between s & e
-        opponent_cell = (opponent_idx, e[1])  # opponent 6cell
+def is_occupied_by_player(board, cell, player):
+    return board[cell[0], cell[1]] == player
 
-        cond1 = any(segment != user)
-        cond2 = sum(segment == opponent_user) == 1
-        cond3 = board[opponent_idx, e[1]] == opponent_user
 
-    elif abs(s[0] - e[0]) == abs(s[1] - e[1]):  # diagonal
-        cond1 = True
-        cond2 = True
-        cond3 = True
+def get_number_of_cells_occupied_by(player, region):
+    # return the number of cells occupied by player in region
+    return np.sum(region == player)
 
-    return (cond1 and cond2 and cond3), opponent_cell
+
+def get_another_player(player):
+    return PLAYER1 if player == PLAYER2 else PLAYER2
+
+
+def is_valid_boundaries(board, cell):
+    return 0 <= cell[0] < board.shape[0] and 0 <= cell[1] < board.shape[1]
+
+
+def get_input(which="start"):
+    while True:
+        # lowercase and uppercase are OK.
+        inp = input(f"Enter {which}: (e.g: a2 B1 c8, etc)\n")
+        inp = inp.strip().lower()
+        if inp[0] in ALPHABET and inp[1:] in string.digits:
+            row = ALPHABET.index(inp[0])  # a start from 0
+            col = int(inp[1:]) - 1  # 1 must start from 0 in python array
+            break
+    return (row, col)  # a cell
 
 
 def update_opponent(board, cell):
     # change opponent color
-    board[cell[0], cell[1]] = USER1 if board[cell[0], cell[1]] == USER2 else USER2
+    board[cell[0], cell[1]] = PLAYER1 if board[cell[0], cell[1]] == PLAYER2 else PLAYER2
     return board
 
 
-def update_cell(board, s, e):
-    user = board[s[0], s[1]]
-    # delete start
-    board[s[0], s[1]] = 0
-    # add end position
-    board[e[0], e[1]] = user
+def update_cell(board, cur_cell, end_cell):
+    cur_player = board[cur_cell[0], cur_cell[1]]
+    board[cur_cell[0], cur_cell[1]] = 0  # delete current cell
+    board[end_cell[0], end_cell[1]] = cur_player  # update end cell
     return board
 
 
-def get_input(which="start"):
-    inp = input(f"Enter {which}:\n")
-    row, col = inp.split(' ')
-    return (int(row), int(col))
-
-
-def update_board(board, s, e, opponent_cell):
+def update_board(board, cur_cell, end_cell, opponent_cell):
     board = update_opponent(board, opponent_cell)
-    board = update_cell(board, s, e)
-    # show board
-    afficher_grille(board)
+    board = update_cell(board, cur_cell, end_cell)
+    return board
 
-    # continue playing
+
+def check_continue(board, current_player, cur_cell=None, end_cell=None):
     do_continue = input("Continue? (y/n):\n")
 
-    if do_continue == 'y':
-        return step(board, current_user, s=e, e=None)
+    if do_continue.lower().strip() == 'y':
+        return step(board, current_player, cur_cell=cur_cell, end_cell=None)
+    elif do_continue.lower().strip() == 'n':
+        opponent_player = PLAYER1 if current_player == PLAYER2 else PLAYER2
+        afficher_grille(board, cur_cell=None)  # show board without highlight
+        return step(board, opponent_player, cur_cell=None, end_cell=None)
+    else:  # invalid answer: not y or n
+        return check_continue(board, current_player, cur_cell=cur_cell, end_cell=end_cell)
 
-    elif do_continue == 'n':
-        current_user = USER1 if current_user == USER2 else USER2
-        return step(board, current_user, s=None, e=None)
+
+def check_finished(board, current_player):
+    opponent_player = get_another_player(current_player)
+    if np.sum(board == opponent_player) <= 5:
+        print("Game over! Player", current_player, "won")
+        if input("Play again? (y/n): ") == 'y':
+            return game()
+        sys.exit()
 
 
-def step(board, current_user, s=None, e=None):
-    print("Your are player", current_user)
-    # check start point, end point
-    if s is None:
-        s = get_input("start point")
-    if e is None:
-        e = get_input("end point")
+def do_if_valid(board, cur_player, cur_cell, end_cell, opponent_cell):
+    board = update_board(board, cur_cell, end_cell, opponent_cell)
+    # show board:  we need to pass the end_cell as cur_cell, see below line
+    afficher_grille(board, cur_cell=end_cell)
+    print("Yayay! Good move!")
+    check_finished(board, cur_player)
+    # Note: we need to pass the end_cell as cur_cell, see below line
+    check_continue(board, cur_player, cur_cell=end_cell, end_cell=None)
+    return board
 
-    # start_valid
-    if board[s[0], s[1]] != current_user:
-        print("Invalid start point for user", current_user)
-        return step(board, current_user, s=None, e=None)
 
-    is_valid, opponent_cell = check_valid_on_top_and_get_opponent(board, s, e)
-    if is_valid:
-        update_board(board, s, e, opponent_cell)
+def step(board, cur_player, cur_cell, end_cell):
+    print(f"Your are player {cur_player}.", end=' ')
 
-    is_valid, opponent_cell = check_valid_between_and_get_opponent(board, s, e)
-    if is_valid:
-        update_board(board, s, e, opponent_cell)
+    if cur_cell is None:
+        cur_cell = get_input("the start cell")
+        afficher_grille(board, cur_cell=cur_cell)  # show board with highlighted current cell
+
+    if end_cell is None:
+        end_cell = get_input("the end cell")
+
+    playerA = cur_player  # current player
+    playerB = get_another_player(playerA)  # another player / opponent
+
+    segment, prior_end_cell = get_interested_segment_and_cell(board, cur_cell, end_cell)
+
+    cur_cell_occupied_by_A = is_occupied_by_player(board, cur_cell, playerA)
+    end_cell_occupied_by_B = is_occupied_by_player(board, end_cell, playerB)
+    prior_end_cell_occupied_by_B = is_occupied_by_player(board, prior_end_cell, playerB)
+
+    num_cells_occupied_by_A = get_number_of_cells_occupied_by(playerA, segment)
+    num_cells_occupied_by_B = get_number_of_cells_occupied_by(playerB, segment)
+
+    # case 1: cur cell is not occupied by current player or wrong inputs
+    if not cur_cell_occupied_by_A or not is_valid_boundaries(board, cur_cell):
+        afficher_grille(board, cur_cell=None)  # show board with no highlighted cells
+        print("Wrong inputs for starting cell. Try again")
+        return step(board, playerA, cur_cell=None, end_cell=None)  # ask for new input for cur cell & end cell
+
+    # case 2: end cell has wrong inputs
+    if not is_valid_boundaries(board, end_cell):
+        afficher_grille(board, cur_cell=cur_cell)  # show board with highlighted current cell
+        print("Wrong inputs for the end cell. Try again")
+        return step(board, playerA, cur_cell=cur_cell, end_cell=None)  # ask for new input for only end cell
+
+    # case 3: jump over 1 cell occupied by opponent and land on an empty cell
+    if num_cells_occupied_by_A == 1 and num_cells_occupied_by_B == 1 and prior_end_cell_occupied_by_B:
+        opponent_cell = prior_end_cell
+        board = do_if_valid(board, playerA, cur_cell, end_cell, opponent_cell)
+
+    # case 4: replace end cell if it is occupied by opponent
+    if num_cells_occupied_by_A == 1 and num_cells_occupied_by_B == 1 and end_cell_occupied_by_B:
+        opponent_cell = end_cell
+        board = do_if_valid(board, playerA, cur_cell, end_cell, opponent_cell)
+
+    # case 5: wrong move, endter new input for end cell
+    afficher_grille(board, cur_cell=cur_cell)  # show board with no highlighted cells
+    print("Can't move to the end cell. Try again")
+    check_continue(board, cur_player, cur_cell=cur_cell, end_cell=None)
+
+
+def select_board():
+    board_style = input("Select the board style: 1 for a standard board, 2 for a random board.\nEnter board style: ")
+    board_size = int(input("Enter board size (e.g. 9 for a 9x9 board): "))
+    if board_style.strip() == '1':
+        return create_board(board_size, style=1)
+    elif board_style.strip() == '2':
+        return create_board(board_size, style=2)
+    else:  # wrong style: not 1 or 2
+        return select_board()
+
+
+def game():
+    board = select_board()
+    afficher_grille(board)
+
+    cur_player = int(input("Enter player you want to play (Player 1 or Player 2) Enter 1 or 2: "))
+    step(board, cur_player, cur_cell=None, end_cell=None)
 
 
 if __name__ == '__main__':
-    size = int(input("Enter board size:\n"))
-    board = create_board(size)
-    afficher_grille(board)
-
-    choose_new_board = True
-    while choose_new_board:
-        new_board = input("Do you want to create new board? (y/n):\n")
-        if new_board == 'y':
-            board = create_board(size)
-            afficher_grille(board)
-        elif new_board == 'n':
-            choose_new_board = False
-
-    user = input("Enter user you want to play:\n")
-    step(board, USER1)
+    game()
