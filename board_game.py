@@ -178,7 +178,7 @@ def step(board, cur_player, cur_cell, end_cell):
 
     if cur_cell is None:
         afficher_grille(board, cur_cell=cur_cell, cur_player=cur_player)  # show board with highlighted current cell
-        print(f"Your are player {cur_player}. Select a cell to move. It must be occupied by {CELL_CODE[cur_player]}")
+        print(f"Player {cur_player}, select a start cell to move, It must be occupied by {CELL_CODE[cur_player]}")
 
         cur_cell = get_input("the start cell")
         afficher_grille(board, cur_cell=cur_cell)  # show board with highlighted current cell
