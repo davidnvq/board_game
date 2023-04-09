@@ -6,6 +6,7 @@ import numpy as np
 PLAYER1 = 1
 PLAYER2 = 2
 ALPHABET = string.ascii_lowercase  # 'abcdefghijklmnopqrstuvwxyz'
+CELL_CODE = [' ', 'x', 'o']
 
 
 def create_board(size, style=1):  # 1 is a standard board;  2 is a random board
@@ -44,7 +45,6 @@ def highlight_cell(cell_code, cell_value, cell, cur_cell=None, cur_player=None):
 
 
 def afficher_grille(board, cur_cell=None, cur_player=None):
-    afficher_carre = [' ', 'x', 'o']
 
     # afficher la row d'indice de colonne de 0-9:
     print('    ' + '   '.join([str(i + 1) for i in range(len(board))]))
@@ -57,13 +57,13 @@ def afficher_grille(board, cur_cell=None, cur_player=None):
         for col in range(board.shape[1]):
             cell = (row, col)
             cell_value = board[row, col]  # 0, 1, 2
-            cell_code = afficher_carre[cell_value]  # ' ', 'x', 'o'
+            cell_code = CELL_CODE[cell_value]  # ' ', 'x', 'o'
             # following just hight light the cell
             cell_code = highlight_cell(cell_code, cell_value, cell=cell, cur_cell=cur_cell, cur_player=cur_player)
             chaque_ligne += cell_code + ' | '
         print(ALPHABET[row].upper(), '|', chaque_ligne)
         print('--+' + '---+' * board.shape[0])
-    print(f"Jouer 1: {afficher_carre[PLAYER1]}             Jouer 2: {afficher_carre[PLAYER2]} ")
+    print(f"Jouer 1: {CELL_CODE[PLAYER1]}             Jouer 2: {CELL_CODE[PLAYER2]} ")
 
 
 def get_step(number1, number2):
@@ -176,7 +176,7 @@ def step(board, cur_player, cur_cell, end_cell):
     playerA = cur_player  # current player
     playerB = get_another_player(playerA)  # another player / opponent
 
-    print(f"Your are player {cur_player}. Select a cell to move. It must be occupied by {cur_player}")
+    print(f"Your are player {cur_player}. Select a cell to move. It must be occupied by {CELL_CODE[cur_player]}")
 
     if cur_cell is None:
         afficher_grille(board, cur_cell=cur_cell, cur_player=cur_player)  # show board with highlighted current cell
