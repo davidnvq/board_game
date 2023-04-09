@@ -176,10 +176,10 @@ def step(board, cur_player, cur_cell, end_cell):
     playerA = cur_player  # current player
     playerB = get_another_player(playerA)  # another player / opponent
 
-    print(f"Your are player {cur_player}. Select a cell to move. It must be occupied by {CELL_CODE[cur_player]}")
-
     if cur_cell is None:
         afficher_grille(board, cur_cell=cur_cell, cur_player=cur_player)  # show board with highlighted current cell
+        print(f"Your are player {cur_player}. Select a cell to move. It must be occupied by {CELL_CODE[cur_player]}")
+
         cur_cell = get_input("the start cell")
         afficher_grille(board, cur_cell=cur_cell)  # show board with highlighted current cell
 
