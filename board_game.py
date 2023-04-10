@@ -2,11 +2,22 @@ import sys
 import math
 import string
 import numpy as np
-
+from copy import deepcopy
+from time import sleep
 PLAYER1 = 1
 PLAYER2 = 2
 ALPHABET = string.ascii_lowercase  # 'abcdefghijklmnopqrstuvwxyz'
 CELL_CODE = [' ', 'x', 'o']
+
+
+def cell2code(cell): # (0, 0) -> 'a1'
+    return ALPHABET[cell[0]].upper() + str(cell[1] + 1)
+
+
+def code2cell(code): # 'a1' -> (0, 0)
+    row = ALPHABET.index(code[0])  # 'a' start from 0, 'b' start from 1, etc
+    col = int(code[1:]) - 1  # 1 must start from 0 in python array
+    return (row, col)
 
 
 def create_board(size, style=1):  # 1 is a standard board;  2 is a random board
@@ -108,16 +119,9 @@ def is_valid_boundaries(board, cell):
     return 0 <= cell[0] < board.shape[0] and 0 <= cell[1] < board.shape[1]
 
 
-def get_input(which="start"):
-    while True:
-        # lowercase and uppercase are OK.
-        inp = input(f"Enter {which}: (e.g: a2 B1 c8, etc)\n")
-        inp = inp.strip().lower()
-        if inp[0] in ALPHABET and inp[1:] in string.digits:
-            row = ALPHABET.index(inp[0])  # a start from 0
-            col = int(inp[1:]) - 1  # 1 must start from 0 in python array
-            break
-    return (row, col)  # a cell
+def get_input(which="start"): # a2 b1 c8 -> [(0, 1), (1, 0), (2, 7)]
+    input_codes = input(f"Enter {which}: (e.g: a2 B1 c8, etc)\n").strip().lower().split()
+    return [code2cell(code) for code in input_codes]
 
 
 def update_opponent(board, cell):
@@ -139,40 +143,27 @@ def update_board(board, cur_cell, end_cell, opponent_cell):
     return board
 
 
-def check_continue(board, current_player, cur_cell=None, end_cell=None):
-    do_continue = input("Continue? (y/n):\n")
-
-    if do_continue.lower().strip() == 'y':
-        return step(board, current_player, cur_cell=cur_cell, end_cell=None)
-    elif do_continue.lower().strip() == 'n':
-        opponent_player = PLAYER1 if current_player == PLAYER2 else PLAYER2
-        afficher_grille(board, cur_cell=None)  # show board without highlight
-        return step(board, opponent_player, cur_cell=None, end_cell=None)
-    else:  # invalid answer: not y or n
-        return check_continue(board, current_player, cur_cell=cur_cell, end_cell=end_cell)
-
-
-def check_finished(board, current_player):
-    opponent_player = get_another_player(current_player)
-    if np.sum(board == opponent_player) <= 5:
-        print("Game over! Player", current_player, "won")
+def check_finished(board, cur_player):
+    opponent_player = get_another_player(cur_player)
+    if np.sum(board == opponent_player) == 6:
+        print("Game over! Player", cur_player, "won")
         if input("Play again? (y/n): ") == 'y':
             return game()
-        sys.exit()
+        else:
+            sys.exit()
 
 
 def do_if_valid(board, cur_player, cur_cell, end_cell, opponent_cell):
     board = update_board(board, cur_cell, end_cell, opponent_cell)
     # show board:  we need to pass the end_cell as cur_cell, see below line
     afficher_grille(board, cur_cell=end_cell)
-    print("Yayay! Good move!")
-    check_finished(board, cur_player)
-    # Note: we need to pass the end_cell as cur_cell, see below line
-    check_continue(board, cur_player, cur_cell=end_cell, end_cell=None)
+    print(f"Yayay! Good move from {cell2code(cur_cell)} to {cell2code(end_cell)}!")
+    sleep(1)
+    print("Next player's turn", flush=True)
     return board
 
 
-def step(board, cur_player, cur_cell, end_cell):
+def step(board, cur_player, cur_cell, end_cell=None, next_move=None):
     playerA = cur_player  # current player
     playerB = get_another_player(playerA)  # another player / opponent
 
@@ -180,48 +171,65 @@ def step(board, cur_player, cur_cell, end_cell):
         afficher_grille(board, cur_cell=cur_cell, cur_player=cur_player)  # show board with highlighted current cell
         print(f"Player {cur_player}, select a start cell to move, It must be occupied by {CELL_CODE[cur_player]}")
 
-        cur_cell = get_input("the start cell")
+        cur_cell = get_input("the start cell")[0]
         afficher_grille(board, cur_cell=cur_cell)  # show board with highlighted current cell
 
-    cur_cell_occupied_by_A = is_occupied_by_player(board, cur_cell, playerA)
+    is_cur_cell_occupied_by_A = is_occupied_by_player(board, cur_cell, playerA)
 
     # case 1: cur cell is not occupied by current player or wrong inputs
-    if not cur_cell_occupied_by_A or not is_valid_boundaries(board, cur_cell):
+    if not is_cur_cell_occupied_by_A or not is_valid_boundaries(board, cur_cell):
         afficher_grille(board, cur_cell=None)  # show board with no highlighted cells
         print("Wrong inputs for starting cell. Try again")
         return step(board, playerA, cur_cell=None, end_cell=None)  # ask for new input for cur cell & end cell
 
-    if end_cell is None:
-        print(f"You are at {ALPHABET[cur_cell[0]].upper()}{cur_cell[1] + 1}.", end=" ")
-        end_cell = get_input("the next cell")
+    # read next cell(s)
+    print(f"You are at {ALPHABET[cur_cell[0]].upper()}{cur_cell[1] + 1}.", end=" ")
+    next_cells = get_input("next cell(s)")
+    
+    STRATEGY = None # "kill" or "jump"
 
-    segment, prior_end_cell = get_interested_segment_and_cell(board, cur_cell, end_cell)
-    end_cell_occupied_by_B = is_occupied_by_player(board, end_cell, playerB)
-    prior_end_cell_occupied_by_B = is_occupied_by_player(board, prior_end_cell, playerB)
+    cur_board = deepcopy(board)
+    for i, end_cell in enumerate(next_cells):
+        segment, prior_end_cell = get_interested_segment_and_cell(board, cur_cell, end_cell)
+        end_cell_occupied_by_B = is_occupied_by_player(board, end_cell, playerB)
+        prior_end_cell_occupied_by_B = is_occupied_by_player(board, prior_end_cell, playerB)
 
-    num_cells_occupied_by_A = get_number_of_cells_occupied_by(playerA, segment)
-    num_cells_occupied_by_B = get_number_of_cells_occupied_by(playerB, segment)
+        num_cells_occupied_by_A = get_number_of_cells_occupied_by(playerA, segment)
+        num_cells_occupied_by_B = get_number_of_cells_occupied_by(playerB, segment)
+        
+        # case 2: end cell has wrong inputs
+        if not is_valid_boundaries(board, end_cell):
+            afficher_grille(board, cur_cell=cur_cell)  # show board with highlighted current cell
+            print("Wrong inputs for the next cell. Try again")
+            return step(cur_board, playerA, cur_cell=cur_cell, end_cell=None)  # ask for new input for only end cell
 
-    # case 2: end cell has wrong inputs
-    if not is_valid_boundaries(board, end_cell):
-        afficher_grille(board, cur_cell=cur_cell)  # show board with highlighted current cell
-        print("Wrong inputs for the next cell. Try again")
-        return step(board, playerA, cur_cell=cur_cell, end_cell=None)  # ask for new input for only end cell
+        # case 3: jump over 1 cell occupied by opponent and land on an empty cell
+        if num_cells_occupied_by_A == 1 and num_cells_occupied_by_B == 1 and prior_end_cell_occupied_by_B:
+            opponent_cell = prior_end_cell
+            if STRATEGY is None or STRATEGY == "jump":
+                STRATEGY = "jump"
+                board = do_if_valid(board, playerA, cur_cell, end_cell, opponent_cell)
+                cur_cell = end_cell
+            else:
+                print("You cannot jump over 1 cell if you have already killed an opponent cell. Try again")
+                return cur_board, cur_player
 
-    # case 3: jump over 1 cell occupied by opponent and land on an empty cell
-    if num_cells_occupied_by_A == 1 and num_cells_occupied_by_B == 1 and prior_end_cell_occupied_by_B:
-        opponent_cell = prior_end_cell
-        board = do_if_valid(board, playerA, cur_cell, end_cell, opponent_cell)
+        # case 4: replace end cell if it is occupied by opponent
+        if num_cells_occupied_by_A == 1 and num_cells_occupied_by_B == 1 and end_cell_occupied_by_B:
+            opponent_cell = end_cell
+            if STRATEGY is None and len(next_cells) == 1:
+                STRATEGY = "kill"
+                board = do_if_valid(board, playerA, cur_cell, end_cell, opponent_cell)
+            elif STRATEGY == None and len(next_cells) > 1:
+                print("You can perform 1 kill only. Try again")
+                return cur_board, cur_player
 
-    # case 4: replace end cell if it is occupied by opponent
-    if num_cells_occupied_by_A == 1 and num_cells_occupied_by_B == 1 and end_cell_occupied_by_B:
-        opponent_cell = end_cell
-        board = do_if_valid(board, playerA, cur_cell, end_cell, opponent_cell)
-
-    # case 5: wrong move, endter new input for end cell
-    afficher_grille(board, cur_cell=cur_cell)  # show board with no highlighted cells
-    print("Can't move to the next cell. Try again")
-    check_continue(board, cur_player, cur_cell=cur_cell, end_cell=None)
+            elif STRATEGY == "jump":
+                print("You cannot kill an opponent cell if you have already jumped over 1 cell. Try again")
+                return cur_board, cur_player
+    
+    check_finished(board, cur_player)
+    return board, get_another_player(cur_player)
 
 
 def select_board():
@@ -238,9 +246,10 @@ def select_board():
 def game():
     board = select_board()
     afficher_grille(board)
-
     cur_player = int(input("Enter player you want to play (Player 1 or Player 2) Enter 1 or 2: "))
-    step(board, cur_player, cur_cell=None, end_cell=None)
+    while True:
+        board, cur_player = step(board, cur_player, cur_cell=None, end_cell=None)
+        sleep(2)
 
 
 if __name__ == '__main__':
